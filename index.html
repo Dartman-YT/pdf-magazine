@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Romantic Flipbook Viewer</title>
+    <!-- Load Tailwind CSS --><script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Load Google Fonts for a romantic feel --><link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Merriweather:ital,wght@0,300;0,400;1,300&family=Dancing+Script:wght@400..700&display=swap" rel="stylesheet">
+    
+    <!-- LOAD PDF.js LIBRARY --><script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
+    </script>
+    
+    <style>
+        /* Custom styles for the romantic theme and robust flipbook */
+        body {
+            font-family: 'Merriweather', serif;
+            background: linear-gradient(to bottom right, #fef2f2, #ffe4e6); /* Soft pink gradient */
+            overscroll-behavior: none; /* Prevent browser pull-to-refresh on swipe */
+        }
+
+        h1, h2 {
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+            color: #880e4f; /* Deep rose */
+        }
+        .dancing-script {
+            font-family: 'Dancing Script', cursive;
+            font-weight: 700;
+        }
+        
+        /* Loading spinner - romantic colors */
+        .loader {
+            border: 8px solid #fce7f3; 
+            border-top: 8px solid #ec4899; /* Pink */
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* --- Flipbook Core Styles (Re-engineered for stability) --- */
+        .book-wrapper {
+            perspective: 2500px; 
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 800px; /* Two pages side-by-side */
+            height: 560px;
+            margin: 0 auto;
+        }
+
+        .book {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+        }
+
+        /* Fixed Back Cover */
+        .back-cover {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 400px;
+            height: 560px;
+            background: linear-gradient(-135deg, #be185d, #9d174d); /* Darker rose gradient */
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 10; /* Lower than flipping pages but higher than nothing */
+        }
+
+        /* Book Spine */
+        .book-spine {
+            position: absolute;
+            left: 395px; 
+            width: 10px;
+            height: 560px;
+            background-color: #7b2438; /* Even darker for depth */
+            z-index: 500; 
+            box-shadow: 0 0 15px rgba(0,0,0,0.4);
+            border-radius: 5px;
+        }
+
+        .page {
+            width: 400px;
+            height: 560px;
+            position: absolute;
+            top: 0;
+            left: 400px; /* All pages initially appear on the right */
+            transform-origin: left center;
+            transition: transform 1.2s cubic-bezier(0.645, 0.045, 0.355, 1); /* Smoother animation */
+            transform-style: preserve-3d;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); /* Subtle shadow for depth */
+        }
+
+        .page.flipped {
+            transform: rotateY(-180deg);
+        }
+
+        .page-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: #fff9f9; /* Off-white paper */
+            border: 1px solid #fbd3da; /* Light pink border */
+            color: #5a3a2b; /* Soft brown text */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            backface-visibility: hidden; /* Essential for 3D flip to prevent content 'bleed-through' */
+            border-radius: 4px;
+        }
+        
+        .page-face canvas {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: block; /* Remove extra space below canvas */
+        }
+
+        /* Front Face (initially visible on the right) */
+        .front-face {
+            transform: translateZ(1px); 
+        }
+        
+        /* Back Face (visible once flipped to the left) */
+        .back-face {
+            transform: rotateY(180deg) translateZ(1px); 
+        }
+        
+        /* Cover Specific Styling */
+        .cover-page .front-face {
+            background: linear-gradient(135deg, #e72986, #be185d); /* Vibrant rose gradient */
+            color: white;
+            padding: 40px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+            display: flex; /* Ensure content is centered */
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .cover-page .back-face {
+            background-color: #fff9f9; 
+            padding: 20px;
+            color: #5a3a2b;
+            text-align: center;
+        }
+
+        /* Navigation Buttons */
+        .nav-btn {
+            background-color: #ffffff;
+            color: #be185d; /* Rose pink */
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px; /* Pill shape */
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            border: 1px solid #fbcfe8; /* Lighter pink border */
+            transition: all 0.2s ease-in-out;
+        }
+        .nav-btn:hover {
+            background-color: #fce7f3; /* Very light pink on hover */
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+        }
+        .nav-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Custom Modal */
+        .custom-modal-overlay {
+            background-color: rgba(0,0,0,0.6);
+        }
+        .custom-modal-box {
+            background-color: #fff9f9;
+            border: 1px solid #fbcfe8;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+        .custom-modal-button {
+            background-color: #be185d;
+            color: white;
+            padding: 0.5rem 1.25rem;
+            border-radius: 0.5rem;
+            transition: background-color 0.2s;
+        }
+        .custom-modal-button:hover {
+            background-color: #880e4f;
+        }
+
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center py-10 px-4">
+
+    <!-- Header --><header class="text-center mb-10">
+        <h1 class="text-6xl dancing-script text-pink-700 leading-tight">My Love Story</h1>
+        <p class="text-xl text-pink-500 mt-3 font-semibold">A journey beautifully told, page by page.</p>
+    </header>
+
+    <!-- Controls --><div class="w-full max-w-2xl bg-white/80 p-8 rounded-3xl shadow-2xl backdrop-blur-sm mb-12 border border-pink-100">
+        <label for="pdf-input" class="block text-center text-2xl text-pink-700 font-semibold mb-4">
+            Unfold Your Story: Upload a PDF
+        </label>
+        <input type="file" id="pdf-input" accept="application/pdf" class="block w-full text-lg text-pink-600
+            file:mr-4 file:py-3 file:px-6
+            file:rounded-full file:border-0
+            file:text-lg file:font-semibold
+            file:bg-pink-100 file:text-pink-700
+            hover:file:bg-pink-200 transition"
+        />
+    </div>
+
+    <!-- Loading Indicator --><div id="loading-indicator" class="hidden text-center">
+        <div class="loader mx-auto"></div>
+        <p class="text-pink-600 text-xl mt-4">Crafting your romantic pages...</p>
+    </div>
+
+    <!-- Flipbook Output Area --><div id="book-output" class="hidden">
+        <div class="book-wrapper" id="book-wrapper">
+            <div id="book" class="book">
+                <!-- Static elements that frame the book --><div class="back-cover"></div>
+                <div class="book-spine"></div>
+                <!-- Pages will be dynamically injected here --></div>
+        </div>
+        
+        <!-- Navigation Buttons --><div class="flex justify-center gap-8 mt-10">
+            <button id="prev-btn" class="nav-btn">
+                <span class="text-2xl leading-none mr-2">&larr;</span> Previous Moment
+            </button>
+            <button id="next-btn" class="nav-btn">
+                Next Chapter <span class="text-2xl leading-none ml-2">&rarr;</span>
+            </button>
+        </div>
+        <p id="page-counter" class="text-center text-md text-gray-600 mt-6"></p>
+    </div>
+
+
+    <script>
+        // --- Configuration ---
+        const BOOK_PAGE_WIDTH = 400; // Width of a single page
+        const BOOK_PAGE_HEIGHT = 560; // Height of a single page
+        const Z_INDEX_BASE = 50; 
+        const TRANSITION_DURATION_MS = 1200; // Must match the CSS transition duration (1.2s)
+
+        // --- DOM Elements ---
+        const pdfInput = document.getElementById('pdf-input');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const bookOutput = document.getElementById('book-output');
+        const bookWrapper = document.getElementById('book-wrapper'); // New wrapper for swipe
+        const book = document.getElementById('book');
+        const nextBtn = document.getElementById('next-btn');
+        const prevBtn = document.getElementById('prev-btn');
+        const pageCounter = document.getElementById('page-counter');
+        const backCover = document.getElementById('back-cover'); // The static back cover
+
+        // --- State ---
+        let pdfDoc = null;
+        let pages = []; // Array of page elements (leaves)
+        let currentLeafIndex = 0; // Index of the page element (leaf) currently on the right
+        let totalLeaves = 0;
+        let isAnimating = false;
+        
+        // --- Touch Swipe State ---
+        let touchStartX = 0;
+        let touchEndX = 0;
+        const SWIPE_THRESHOLD = 50; // Minimum pixels to count as a swipe
+
+        // --- Event Listeners ---
+        pdfInput.addEventListener('change', handlePdfUpload);
+        nextBtn.addEventListener('click', goNextPage);
+        prevBtn.addEventListener('click', goPrevPage);
+
+        // Touch event listeners for swipe
+        bookWrapper.addEventListener('touchstart', handleTouchStart, false);
+        bookWrapper.addEventListener('touchmove', handleTouchMove, false);
+        bookWrapper.addEventListener('touchend', handleTouchEnd, false);
+
+        // --- Core Logic ---
+
+        function handlePdfUpload(event) {
+            console.log('--- File Upload Initiated ---');
+            const file = event.target.files[0];
+            if (!file || file.type !== 'application/pdf') {
+                showModal("Please select a PDF file (.pdf).");
+                pdfInput.value = ''; // Clear input for re-selection
+                return;
+            }
+
+            loadingIndicator.classList.remove('hidden');
+            bookOutput.classList.add('hidden'); 
+            console.log(`File selected: ${file.name}, starting FileReader.`);
+
+            const fileReader = new FileReader();
+            fileReader.onload = function() {
+                const typedarray = new Uint8Array(this.result);
+                loadPdf(typedarray);
+            };
+            fileReader.readAsArrayBuffer(file);
+        }
+
+        async function loadPdf(pdfData) {
+            console.log('--- loadPdf started ---');
+            try {
+                // 1. Clear old book & reset state
+                const bookSpine = book.querySelector('.book-spine');
+                // Temporarily detach static elements to clear and then re-attach
+                const staticElements = [bookSpine, backCover];
+                staticElements.forEach(el => el && el.remove());
+
+                book.innerHTML = ''; // Clear all old pages
+                staticElements.forEach(el => el && book.appendChild(el)); // Re-add static elements
+
+                pages = [];
+                currentLeafIndex = 0;
+                isAnimating = false;
+                pdfDoc = null; 
+                console.log('Book structure reset and static elements re-attached.');
+
+                // 2. Load the PDF document
+                pdfDoc = await pdfjsLib.getDocument({ data: pdfData }).promise;
+                const numPages = pdfDoc.numPages;
+                console.log(`PDF loaded successfully. Total pages: ${numPages}`);
+
+                // 3. Create Cover Page Leaf (Custom Front, PDF Page 2 on Back)
+                const coverLeaf = createCoverLeaf();
+                pages.push(coverLeaf);
+                
+                // FIX: PDF Page 1 is skipped to allow the custom HTML cover. 
+                // Render PDF Page 2 on the BACK face of the cover leaf.
+                if (numPages >= 2) {
+                   await renderPage(pdfDoc, 2, coverLeaf.querySelector('.back-face canvas'));
+                   console.log('Cover leaf created (Custom Front) and rendered PDF Page 2 on back face.');
+                } else {
+                    // Handle case where PDF only has 1 page (Cover Front is Custom, Back is blank)
+                    coverLeaf.querySelector('.back-face').innerHTML = '<span class="text-gray-400 text-xl">— Only one PDF page found —</span>';
+                    console.log('Cover leaf created (Custom Front). PDF only has 1 page.');
+                }
+                
+                // 4. Create Leaves for the rest of the PDF pages
+                // Start from PDF Page 3 (i=3) and jump by 2.
+                for (let i = 3; i <= numPages; i += 2) {
+                    const pageLeaf = createPageLeaf();
+                    
+                    // Front Face (PDF Page i)
+                    await renderPage(pdfDoc, i, pageLeaf.querySelector('.front-face canvas'));
+                    
+                    // Back Face (PDF Page i+1, if it exists)
+                    if (i + 1 <= numPages) {
+                        await renderPage(pdfDoc, i + 1, pageLeaf.querySelector('.back-face canvas'));
+                    } else {
+                        pageLeaf.querySelector('.back-face').innerHTML = '<span class="text-gray-400 text-xl">— End of Content —</span>';
+                    }
+
+                    pages.push(pageLeaf);
+                    console.log(`Leaf created for PDF Pages ${i} and ${i + 1 > numPages ? 'blank' : i + 1}.`);
+                }
+                
+                // 5. Add all dynamic pages to the book with correct initial z-index
+                totalLeaves = pages.length;
+                pages.forEach((page, index) => {
+                    // Leaves closer to the back cover have lower z-index, leaves near the front have higher.
+                    page.style.zIndex = Z_INDEX_BASE + (totalLeaves - 1) - index; 
+                    book.appendChild(page);
+                });
+                console.log(`Total leaves added: ${totalLeaves}`);
+
+                // 6. Show the book and update UI
+                loadingIndicator.classList.add('hidden');
+                bookOutput.classList.remove('hidden');
+                updateNavButtons();
+                console.log('--- PDF loading complete. Book is visible. ---');
+
+            } catch (error) {
+                console.error('FATAL ERROR: Failed to load or render PDF. Check the PDF file or file access permissions.', error);
+                
+                // --- CRITICAL RESET on Error ---
+                pdfDoc = null; 
+                pdfInput.value = ''; // Clear input for user to re-select
+                pages = [];
+                currentLeafIndex = 0;
+                totalLeaves = 0;
+                isAnimating = false;
+                // Re-attach static elements in case they were detached
+                const bookSpine = book.querySelector('.book-spine');
+                const staticElements = [bookSpine, backCover];
+                book.innerHTML = '';
+                staticElements.forEach(el => el && book.appendChild(el));
+                // --- END CRITICAL RESET ---
+
+                showModal('An error occurred while opening the PDF file. Please ensure it\'s a valid PDF and try again.');
+                loadingIndicator.classList.add('hidden');
+                bookOutput.classList.add('hidden'); 
+                updateNavButtons(); // Update buttons to disabled state
+            }
+        }
+
+        // Helper to create a generic page 'leaf' (front and back)
+        function createPageLeaf() {
+            const leaf = document.createElement('div');
+            leaf.className = 'page';
+
+            const frontFace = document.createElement('div');
+            frontFace.className = 'page-face front-face';
+            frontFace.appendChild(document.createElement('canvas')); // Canvas for PDF rendering
+            
+            const backFace = document.createElement('div');
+            backFace.className = 'page-face back-face';
+            backFace.appendChild(document.createElement('canvas')); // Canvas for PDF rendering
+
+            leaf.appendChild(frontFace);
+            leaf.appendChild(backFace);
+            return leaf;
+        }
+        
+        // Helper to create the special cover page leaf
+        function createCoverLeaf() {
+            const cover = createPageLeaf();
+            cover.classList.add('cover-page');
+            
+            // Overwrite the canvas on the cover front with romantic themed text
+            // NOTE: This intentionally removes the canvas from the front face, so PDF page 1 is skipped.
+            const frontFace = cover.querySelector('.front-face');
+            frontFace.innerHTML = `
+                <div class="text-center p-8">
+                    <p class="dancing-script text-6xl text-white drop-shadow-lg mb-4">Our Journey</p>
+                    <div class="border-t-2 border-pink-200 w-3/4 mx-auto my-6 opacity-80"></div>
+                    <p class="text-pink-100 text-lg font-light tracking-wide">Every page, a cherished memory.</p>
+                </div>
+            `;
+            return cover;
+        }
+
+        // Helper to render a PDF page onto a canvas
+        async function renderPage(pdf, pageNum, canvas) {
+            try {
+                const page = await pdf.getPage(pageNum);
+                
+                const viewport = page.getViewport({ scale: 1.0 });
+                
+                // Calculate scale to fit our book page (400x560) while maintaining aspect ratio
+                const scale = Math.min(
+                    BOOK_PAGE_WIDTH / viewport.width, 
+                    BOOK_PAGE_HEIGHT / viewport.height
+                );
+                const scaledViewport = page.getViewport({ scale });
+
+                // Set canvas size and render
+                const context = canvas.getContext('2d');
+                canvas.width = scaledViewport.width;
+                canvas.height = scaledViewport.height;
+
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: scaledViewport
+                };
+                await page.render(renderContext).promise;
+            } catch (e) {
+                console.error(`Error rendering PDF Page ${pageNum}:`, e);
+                throw e; // Re-throw to be caught by the main loadPdf error handler
+            }
+        }
+
+        /**
+         * Flips to the next page, managing Z-index for smooth layering.
+         */
+        function goNextPage() {
+            if (currentLeafIndex >= totalLeaves || isAnimating) { // totalLeaves is the last possible leaf index + 1
+                console.log('Cannot go next. Either at end or animating.');
+                return;
+            }
+            isAnimating = true;
+
+            const pageToFlip = pages[currentLeafIndex];
+            
+            // 1. Boost the current page's Z-index so it flips over all others.
+            // This is crucial for correct layering during the animation.
+            pageToFlip.style.zIndex = Z_INDEX_BASE + totalLeaves + 100; // Extra boost
+            
+            pageToFlip.classList.add('flipped');
+            console.log(`Flipping page ${currentLeafIndex} forward.`);
+            
+            // 2. Reset the Z-index AFTER the animation finishes (1.2s)
+            // The flipped page now belongs on the left side, which is the lowest layer
+            setTimeout(() => {
+                pageToFlip.style.zIndex = Z_INDEX_BASE + currentLeafIndex; // Its new position relative to other flipped pages
+                currentLeafIndex++;
+                updateNavButtons();
+                isAnimating = false;
+                console.log(`Flipped to next spread. Current Leaf Index: ${currentLeafIndex}`);
+            }, TRANSITION_DURATION_MS + 50); // Add a small buffer
+        }
+
+        /**
+         * Flips back to the previous page, managing Z-index for smooth layering.
+         */
+        function goPrevPage() {
+            if (currentLeafIndex <= 0 || isAnimating) {
+                console.log('Cannot go previous. Either at start or animating.');
+                return;
+            }
+            isAnimating = true;
+
+            currentLeafIndex--;
+            const pageToUnflip = pages[currentLeafIndex]; 
+            
+            // 1. Boost the page we are un-flipping while it rotates back to the right.
+            pageToUnflip.style.zIndex = Z_INDEX_BASE + totalLeaves + 100; // Extra boost
+            
+            pageToUnflip.classList.remove('flipped');
+            console.log(`Un-flipping page ${currentLeafIndex} backward.`);
+            
+            // 2. Restore the page's original Z-index AFTER the animation finishes (1.2s)
+            // It is now back on the right side, occupying its spot in the stack.
+            setTimeout(() => {
+                // Its original z-index based on its sequential order
+                pageToUnflip.style.zIndex = Z_INDEX_BASE + (totalLeaves - 1) - currentLeafIndex; 
+                updateNavButtons();
+                isAnimating = false;
+                console.log(`Flipped to previous spread. Current Leaf Index: ${currentLeafIndex}`);
+            }, TRANSITION_DURATION_MS + 50); // Add a small buffer
+        }
+
+        function updateNavButtons() {
+            const totalPdfPages = pdfDoc ? pdfDoc.numPages : 0;
+            
+            if (!pdfDoc || totalLeaves === 0) {
+                prevBtn.disabled = true;
+                nextBtn.disabled = true;
+                pageCounter.textContent = 'Upload your PDF to begin.';
+                return;
+            }
+
+            // A 'leaf' is a pair of PDF pages (front and back of one physical sheet in the book)
+            // currentLeafIndex 0 is the cover.
+            
+            prevBtn.disabled = currentLeafIndex === 0;
+            nextBtn.disabled = currentLeafIndex === totalLeaves; // Disabled if all leaves have been flipped left
+
+            // Determine what PDF pages are conceptually visible for the counter
+            let countText;
+            if (currentLeafIndex === 0) {
+                countText = `Cover Page (PDF 1 skipped for Custom Cover)`;
+            } else if (currentLeafIndex === totalLeaves) {
+                // This state means all pages are flipped, showing the back cover.
+                countText = `End of Your Story`;
+            } else {
+                // Leaf 1 (index 1) shows PDF Pages 2 & 3
+                // Leaf N (index N) shows PDF Pages (2N) & (2N + 1)
+                
+                // PDF pages start at index 2 (back of cover is PDF 2)
+                const leftPdfPage = (currentLeafIndex * 2);
+                const rightPdfPage = (currentLeafIndex * 2) + 1;
+                
+                if (leftPdfPage > totalPdfPages) { 
+                    countText = `Showing Back Cover`;
+                } else if (rightPdfPage > totalPdfPages) {
+                    countText = `PDF Page ${leftPdfPage} (End)`; // Odd number of pages, right side is blank
+                } else {
+                    countText = `PDF Pages ${leftPdfPage} & ${rightPdfPage}`;
+                }
+            }
+
+            pageCounter.textContent = `${countText} (Total PDF Pages: ${totalPdfPages})`;
+            console.log(`Nav buttons updated. Index: ${currentLeafIndex}, Total Leaves: ${totalLeaves}`);
+        }
+
+        // --- Touch Swipe Handlers ---
+        function handleTouchStart(event) {
+            touchStartX = event.changedTouches[0].screenX;
+            // Prevent scrolling behavior if a swipe is starting, but allow vertical scrolling
+            bookWrapper.style.touchAction = 'none'; 
+        }
+
+        function handleTouchMove(event) {
+            // This is primarily to prevent default scroll-to-refresh on some browsers
+            // and ensure the swipe gesture is captured.
+            event.preventDefault(); 
+        }
+
+        function handleTouchEnd(event) {
+            touchEndX = event.changedTouches[0].screenX;
+            bookWrapper.style.touchAction = 'pan-y'; // Re-enable vertical scrolling
+
+            if (isAnimating) return; // Don't allow new swipes during animation
+
+            const distance = touchEndX - touchStartX;
+
+            if (distance > SWIPE_THRESHOLD) { // Swiped right
+                goPrevPage();
+            } else if (distance < -SWIPE_THRESHOLD) { // Swiped left
+                goNextPage();
+            }
+        }
+
+        // Custom Modal for alerts
+        function showModal(message) {
+            if (document.getElementById('custom-modal')) {
+                document.getElementById('custom-modal').remove();
+            }
+
+            const modalOverlay = document.createElement('div');
+            modalOverlay.id = 'custom-modal';
+            modalOverlay.className = 'custom-modal-overlay fixed inset-0 flex items-center justify-center z-50';
+            
+            const modalBox = document.createElement('div');
+            modalBox.className = 'custom-modal-box p-8 rounded-lg max-w-sm text-center';
+            
+            const modalText = document.createElement('p');
+            modalText.className = 'text-xl text-pink-700 font-semibold mb-6';
+            modalText.textContent = message;
+            
+            const modalButton = document.createElement('button');
+            modalButton.className = 'custom-modal-button';
+            modalButton.textContent = 'Understood';
+            
+            modalButton.onclick = () => {
+                modalOverlay.remove();
+            };
+            
+            modalBox.appendChild(modalText);
+            modalBox.appendChild(modalButton);
+            modalOverlay.appendChild(modalBox);
+            document.body.appendChild(modalOverlay);
+        }
+
+        // Initial setup on page load
+        updateNavButtons();
+
+    </script>
+</body>
+</html>
