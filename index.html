@@ -121,7 +121,7 @@
             background-color: #fff9f9; /* Off-white paper */
             border: 1px solid #fbd3da; /* Light pink border */
             color: #5a3a2b; /* Soft brown text */
-            display: flex;
+            display: flex; /* Flexbox to center content */
             justify-content: center;
             align-items: center;
             overflow: hidden;
@@ -132,7 +132,7 @@
         .page-face canvas {
             max-width: 100%;
             max-height: 100%;
-            object-fit: contain;
+            object-fit: contain; /* Ensures canvas content scales without cropping */
             display: block; 
         }
 
@@ -150,19 +150,22 @@
         .cover-page .front-face {
             background: linear-gradient(135deg, #e72986, #be185d); 
             color: white;
-            padding: 40px;
+            padding: 40px; /* Padding for the custom text */
             box-shadow: 0 6px 20px rgba(0,0,0,0.3);
             display: flex; 
             flex-direction: column;
             justify-content: center;
             align-items: center;
         }
+        /* --- FIX: Remove specific padding/text-align from back-face to allow canvas to fill --- */
         .cover-page .back-face {
-            background-color: #fff9f9; 
-            padding: 20px;
-            color: #5a3a2b;
-            text-align: center;
+            /* These styles were causing the canvas to shrink, now removed */
+            /* background-color: #fff9f9; */ 
+            /* padding: 20px; */ 
+            /* color: #5a3a2b; */
+            /* text-align: center; */
         }
+        /* --- END FIX --- */
 
         /* Navigation Buttons */
         .nav-btn {
@@ -211,13 +214,13 @@
 <body class="min-h-screen flex flex-col items-center py-10 px-4">
 
     <!-- Header --><header class="text-center mb-10">
-        <h1 class="text-6xl dancing-script text-pink-700 leading-tight">My Love Story</h1>
+        <h1 class="text-6xl dancing-script text-pink-700 leading-tight">Happy Birthday My Love!<br>❤</br></h1>
         <p class="text-xl text-pink-500 mt-3 font-semibold">A journey beautifully told, page by page.</p>
     </header>
 
     <!-- Controls --><div class="w-full max-w-2xl bg-white/80 p-8 rounded-3xl shadow-2xl backdrop-blur-sm mb-12 border border-pink-100">
         <label for="pdf-input" class="block text-center text-2xl text-pink-700 font-semibold mb-4">
-            Unfold Your Story: Upload a PDF
+            Unfold Your Story: Upload the PDF Magazine
         </label>
         <input type="file" id="pdf-input" accept="application/pdf" class="block w-full text-lg text-pink-600
             file:mr-4 file:py-3 file:px-6
@@ -353,8 +356,8 @@
                 BOOK_PAGE_HEIGHT = Math.floor(TARGET_BOOK_WIDTH / pdfAspectRatio);
 
                 // Update CSS variables for the entire book wrapper to enforce dynamic sizing
-                bookWrapper.style.setProperty('--page-width', `${BOOK_PAGE_WIDTH}px`);
-                bookWrapper.style.setProperty('--page-height', `${BOOK_PAGE_HEIGHT}px`);
+                document.documentElement.style.setProperty('--page-width', `${BOOK_PAGE_WIDTH}px`);
+                document.documentElement.style.setProperty('--page-height', `${BOOK_PAGE_HEIGHT}px`);
 
                 console.log(`Dynamic size calculated: W: ${BOOK_PAGE_WIDTH}px, H: ${BOOK_PAGE_HEIGHT}px (Aspect Ratio: 1:${(1/pdfAspectRatio).toFixed(2)})`);
                 // *** DYNAMIC SIZING CALCULATION END ***
@@ -584,7 +587,7 @@
             // Determine what PDF pages are conceptually visible for the counter
             let countText;
             if (currentLeafIndex === 0) {
-                countText = `Cover Page (PDF 1 skipped for Custom Cover)`;
+                countText = `Cover Page`;
             } else if (currentLeafIndex === totalLeaves) {
                 countText = `End of Your Story`;
             } else {
