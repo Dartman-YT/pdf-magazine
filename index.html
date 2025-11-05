@@ -16,6 +16,12 @@
     </script>
     
     <style>
+        /* Define default CSS variables for fallbacks */
+        :root {
+            --page-width: 400px;
+            --page-height: 560px;
+        }
+
         /* Custom styles for the romantic theme and robust flipbook */
         body {
             font-family: 'Merriweather', serif;
@@ -47,15 +53,16 @@
             100% { transform: rotate(360deg); }
         }
 
-        /* --- Flipbook Core Styles (Re-engineered for stability) --- */
+        /* --- Flipbook Core Styles (DYNAMICALLY SIZED using CSS Variables) --- */
         .book-wrapper {
             perspective: 2500px; 
             position: relative;
             display: flex;
             justify-content: center;
             align-items: center;
-            width: 800px; /* Two pages side-by-side */
-            height: 560px;
+            /* Use CSS Variables set by JavaScript */
+            width: calc(2 * var(--page-width)); /* Two pages side-by-side */
+            height: var(--page-height);
             margin: 0 auto;
         }
 
@@ -71,20 +78,20 @@
             position: absolute;
             top: 0;
             left: 0;
-            width: 400px;
-            height: 560px;
+            width: var(--page-width);
+            height: var(--page-height);
             background: linear-gradient(-135deg, #be185d, #9d174d); /* Darker rose gradient */
             border-radius: 4px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-            z-index: 10; /* Lower than flipping pages but higher than nothing */
+            z-index: 10; 
         }
 
         /* Book Spine */
         .book-spine {
             position: absolute;
-            left: 395px; 
+            left: calc(var(--page-width) - 5px); /* Center the 10px spine */
             width: 10px;
-            height: 560px;
+            height: var(--page-height);
             background-color: #7b2438; /* Even darker for depth */
             z-index: 500; 
             box-shadow: 0 0 15px rgba(0,0,0,0.4);
@@ -92,15 +99,15 @@
         }
 
         .page {
-            width: 400px;
-            height: 560px;
+            width: var(--page-width);
+            height: var(--page-height);
             position: absolute;
             top: 0;
-            left: 400px; /* All pages initially appear on the right */
+            left: var(--page-width); /* All pages initially appear on the right */
             transform-origin: left center;
             transition: transform 1.2s cubic-bezier(0.645, 0.045, 0.355, 1); /* Smoother animation */
             transform-style: preserve-3d;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1); /* Subtle shadow for depth */
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
         }
 
         .page.flipped {
@@ -118,7 +125,7 @@
             justify-content: center;
             align-items: center;
             overflow: hidden;
-            backface-visibility: hidden; /* Essential for 3D flip to prevent content 'bleed-through' */
+            backface-visibility: hidden; 
             border-radius: 4px;
         }
         
@@ -126,7 +133,7 @@
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
-            display: block; /* Remove extra space below canvas */
+            display: block; 
         }
 
         /* Front Face (initially visible on the right) */
@@ -141,11 +148,11 @@
         
         /* Cover Specific Styling */
         .cover-page .front-face {
-            background: linear-gradient(135deg, #e72986, #be185d); /* Vibrant rose gradient */
+            background: linear-gradient(135deg, #e72986, #be185d); 
             color: white;
             padding: 40px;
             box-shadow: 0 6px 20px rgba(0,0,0,0.3);
-            display: flex; /* Ensure content is centered */
+            display: flex; 
             flex-direction: column;
             justify-content: center;
             align-items: center;
@@ -160,15 +167,15 @@
         /* Navigation Buttons */
         .nav-btn {
             background-color: #ffffff;
-            color: #be185d; /* Rose pink */
+            color: #be185d; 
             padding: 0.75rem 1.5rem;
-            border-radius: 9999px; /* Pill shape */
+            border-radius: 9999px; 
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-            border: 1px solid #fbcfe8; /* Lighter pink border */
+            border: 1px solid #fbcfe8; 
             transition: all 0.2s ease-in-out;
         }
         .nav-btn:hover {
-            background-color: #fce7f3; /* Very light pink on hover */
+            background-color: #fce7f3; 
             transform: translateY(-2px);
             box-shadow: 0 6px 15px rgba(0,0,0,0.15);
         }
@@ -248,8 +255,10 @@
 
     <script>
         // --- Configuration ---
-        const BOOK_PAGE_WIDTH = 400; // Width of a single page
-        const BOOK_PAGE_HEIGHT = 560; // Height of a single page
+        const TARGET_BOOK_WIDTH = 400; // Define the target fixed width for a single page
+        let BOOK_PAGE_WIDTH = TARGET_BOOK_WIDTH; // Will hold the calculated width
+        let BOOK_PAGE_HEIGHT = 560; // Will hold the calculated height
+        const TARGET_SCALE = 2.0; // Render at 2x base resolution for better quality
         const Z_INDEX_BASE = 50; 
         const TRANSITION_DURATION_MS = 1200; // Must match the CSS transition duration (1.2s)
 
@@ -257,24 +266,24 @@
         const pdfInput = document.getElementById('pdf-input');
         const loadingIndicator = document.getElementById('loading-indicator');
         const bookOutput = document.getElementById('book-output');
-        const bookWrapper = document.getElementById('book-wrapper'); // New wrapper for swipe
+        const bookWrapper = document.getElementById('book-wrapper'); 
         const book = document.getElementById('book');
         const nextBtn = document.getElementById('next-btn');
         const prevBtn = document.getElementById('prev-btn');
         const pageCounter = document.getElementById('page-counter');
-        const backCover = document.getElementById('back-cover'); // The static back cover
+        const backCover = document.querySelector('.back-cover'); // Select the back-cover element
 
         // --- State ---
         let pdfDoc = null;
-        let pages = []; // Array of page elements (leaves)
-        let currentLeafIndex = 0; // Index of the page element (leaf) currently on the right
+        let pages = []; 
+        let currentLeafIndex = 0; 
         let totalLeaves = 0;
         let isAnimating = false;
         
         // --- Touch Swipe State ---
         let touchStartX = 0;
         let touchEndX = 0;
-        const SWIPE_THRESHOLD = 50; // Minimum pixels to count as a swipe
+        const SWIPE_THRESHOLD = 50; 
 
         // --- Event Listeners ---
         pdfInput.addEventListener('change', handlePdfUpload);
@@ -293,7 +302,7 @@
             const file = event.target.files[0];
             if (!file || file.type !== 'application/pdf') {
                 showModal("Please select a PDF file (.pdf).");
-                pdfInput.value = ''; // Clear input for re-selection
+                pdfInput.value = ''; 
                 return;
             }
 
@@ -331,18 +340,37 @@
                 pdfDoc = await pdfjsLib.getDocument({ data: pdfData }).promise;
                 const numPages = pdfDoc.numPages;
                 console.log(`PDF loaded successfully. Total pages: ${numPages}`);
+                
+                // *** DYNAMIC SIZING CALCULATION START ***
+                // Get the viewport of the very first page to determine the aspect ratio
+                const firstPage = await pdfDoc.getPage(1);
+                const viewport = firstPage.getViewport({ scale: 1.0 });
+
+                // Calculate dynamic dimensions based on a fixed width (TARGET_BOOK_WIDTH = 400)
+                const pdfAspectRatio = viewport.width / viewport.height;
+                BOOK_PAGE_WIDTH = TARGET_BOOK_WIDTH;
+                // Calculate height based on the ratio, rounding down for whole pixels
+                BOOK_PAGE_HEIGHT = Math.floor(TARGET_BOOK_WIDTH / pdfAspectRatio);
+
+                // Update CSS variables for the entire book wrapper to enforce dynamic sizing
+                bookWrapper.style.setProperty('--page-width', `${BOOK_PAGE_WIDTH}px`);
+                bookWrapper.style.setProperty('--page-height', `${BOOK_PAGE_HEIGHT}px`);
+
+                console.log(`Dynamic size calculated: W: ${BOOK_PAGE_WIDTH}px, H: ${BOOK_PAGE_HEIGHT}px (Aspect Ratio: 1:${(1/pdfAspectRatio).toFixed(2)})`);
+                // *** DYNAMIC SIZING CALCULATION END ***
+
 
                 // 3. Create Cover Page Leaf (Custom Front, PDF Page 2 on Back)
                 const coverLeaf = createCoverLeaf();
                 pages.push(coverLeaf);
                 
-                // FIX: PDF Page 1 is skipped to allow the custom HTML cover. 
+                // PDF Page 1 is skipped for the custom HTML cover. 
                 // Render PDF Page 2 on the BACK face of the cover leaf.
                 if (numPages >= 2) {
+                   // Ensure we pass the canvas element to renderPage
                    await renderPage(pdfDoc, 2, coverLeaf.querySelector('.back-face canvas'));
                    console.log('Cover leaf created (Custom Front) and rendered PDF Page 2 on back face.');
                 } else {
-                    // Handle case where PDF only has 1 page (Cover Front is Custom, Back is blank)
                     coverLeaf.querySelector('.back-face').innerHTML = '<span class="text-gray-400 text-xl">— Only one PDF page found —</span>';
                     console.log('Cover leaf created (Custom Front). PDF only has 1 page.');
                 }
@@ -428,8 +456,7 @@
             const cover = createPageLeaf();
             cover.classList.add('cover-page');
             
-            // Overwrite the canvas on the cover front with romantic themed text
-            // NOTE: This intentionally removes the canvas from the front face, so PDF page 1 is skipped.
+            // Overwrite the canvas on the cover front with romantic themed text (PDF Page 1 is skipped)
             const frontFace = cover.querySelector('.front-face');
             frontFace.innerHTML = `
                 <div class="text-center p-8">
@@ -441,41 +468,55 @@
             return cover;
         }
 
-        // Helper to render a PDF page onto a canvas
+        // --- UPDATED RENDER FUNCTION FOR HIGH QUALITY (Uses the new dynamic BOOK_PAGE_WIDTH/HEIGHT) ---
         async function renderPage(pdf, pageNum, canvas) {
             try {
                 const page = await pdf.getPage(pageNum);
                 
+                // 1. Get the initial viewport (1.0 scale)
                 const viewport = page.getViewport({ scale: 1.0 });
                 
-                // Calculate scale to fit our book page (400x560) while maintaining aspect ratio
-                const scale = Math.min(
+                // 2. Calculate the base scale needed to fit the content within the dynamically calculated container
+                const baseScale = Math.min(
                     BOOK_PAGE_WIDTH / viewport.width, 
                     BOOK_PAGE_HEIGHT / viewport.height
                 );
-                const scaledViewport = page.getViewport({ scale });
 
-                // Set canvas size and render
+                // 3. Determine the final scale: Base scale * Device Pixel Ratio * Target Scale (for extra sharpness)
+                const DPR = window.devicePixelRatio || 1;
+                const renderScale = baseScale * DPR * TARGET_SCALE;
+                
+                const finalViewport = page.getViewport({ scale: renderScale });
+
+                // 4. Set the canvas's internal drawing dimensions (large for high resolution)
                 const context = canvas.getContext('2d');
-                canvas.width = scaledViewport.width;
-                canvas.height = scaledViewport.height;
+                canvas.width = finalViewport.width;
+                canvas.height = finalViewport.height;
+
+                // 5. Set the canvas's CSS dimensions (fixed to fit the dynamically sized container)
+                canvas.style.width = `${BOOK_PAGE_WIDTH}px`;
+                canvas.style.height = `${BOOK_PAGE_HEIGHT}px`;
 
                 const renderContext = {
                     canvasContext: context,
-                    viewport: scaledViewport
+                    viewport: finalViewport
                 };
                 await page.render(renderContext).promise;
+
+                console.log(`Rendered PDF Page ${pageNum} at scale: ${renderScale.toFixed(2)}`);
+
             } catch (e) {
                 console.error(`Error rendering PDF Page ${pageNum}:`, e);
-                throw e; // Re-throw to be caught by the main loadPdf error handler
+                throw e; 
             }
         }
+        // ------------------------------------------------------------------------------------------
 
         /**
          * Flips to the next page, managing Z-index for smooth layering.
          */
         function goNextPage() {
-            if (currentLeafIndex >= totalLeaves || isAnimating) { // totalLeaves is the last possible leaf index + 1
+            if (currentLeafIndex >= totalLeaves || isAnimating) {
                 console.log('Cannot go next. Either at end or animating.');
                 return;
             }
@@ -484,21 +525,19 @@
             const pageToFlip = pages[currentLeafIndex];
             
             // 1. Boost the current page's Z-index so it flips over all others.
-            // This is crucial for correct layering during the animation.
-            pageToFlip.style.zIndex = Z_INDEX_BASE + totalLeaves + 100; // Extra boost
+            pageToFlip.style.zIndex = Z_INDEX_BASE + totalLeaves + 100;
             
             pageToFlip.classList.add('flipped');
             console.log(`Flipping page ${currentLeafIndex} forward.`);
             
             // 2. Reset the Z-index AFTER the animation finishes (1.2s)
-            // The flipped page now belongs on the left side, which is the lowest layer
             setTimeout(() => {
-                pageToFlip.style.zIndex = Z_INDEX_BASE + currentLeafIndex; // Its new position relative to other flipped pages
+                pageToFlip.style.zIndex = Z_INDEX_BASE + currentLeafIndex;
                 currentLeafIndex++;
                 updateNavButtons();
                 isAnimating = false;
                 console.log(`Flipped to next spread. Current Leaf Index: ${currentLeafIndex}`);
-            }, TRANSITION_DURATION_MS + 50); // Add a small buffer
+            }, TRANSITION_DURATION_MS + 50);
         }
 
         /**
@@ -515,20 +554,18 @@
             const pageToUnflip = pages[currentLeafIndex]; 
             
             // 1. Boost the page we are un-flipping while it rotates back to the right.
-            pageToUnflip.style.zIndex = Z_INDEX_BASE + totalLeaves + 100; // Extra boost
+            pageToUnflip.style.zIndex = Z_INDEX_BASE + totalLeaves + 100;
             
             pageToUnflip.classList.remove('flipped');
             console.log(`Un-flipping page ${currentLeafIndex} backward.`);
             
             // 2. Restore the page's original Z-index AFTER the animation finishes (1.2s)
-            // It is now back on the right side, occupying its spot in the stack.
             setTimeout(() => {
-                // Its original z-index based on its sequential order
                 pageToUnflip.style.zIndex = Z_INDEX_BASE + (totalLeaves - 1) - currentLeafIndex; 
                 updateNavButtons();
                 isAnimating = false;
                 console.log(`Flipped to previous spread. Current Leaf Index: ${currentLeafIndex}`);
-            }, TRANSITION_DURATION_MS + 50); // Add a small buffer
+            }, TRANSITION_DURATION_MS + 50);
         }
 
         function updateNavButtons() {
@@ -541,23 +578,16 @@
                 return;
             }
 
-            // A 'leaf' is a pair of PDF pages (front and back of one physical sheet in the book)
-            // currentLeafIndex 0 is the cover.
-            
             prevBtn.disabled = currentLeafIndex === 0;
-            nextBtn.disabled = currentLeafIndex === totalLeaves; // Disabled if all leaves have been flipped left
+            nextBtn.disabled = currentLeafIndex === totalLeaves;
 
             // Determine what PDF pages are conceptually visible for the counter
             let countText;
             if (currentLeafIndex === 0) {
                 countText = `Cover Page (PDF 1 skipped for Custom Cover)`;
             } else if (currentLeafIndex === totalLeaves) {
-                // This state means all pages are flipped, showing the back cover.
                 countText = `End of Your Story`;
             } else {
-                // Leaf 1 (index 1) shows PDF Pages 2 & 3
-                // Leaf N (index N) shows PDF Pages (2N) & (2N + 1)
-                
                 // PDF pages start at index 2 (back of cover is PDF 2)
                 const leftPdfPage = (currentLeafIndex * 2);
                 const rightPdfPage = (currentLeafIndex * 2) + 1;
@@ -565,7 +595,7 @@
                 if (leftPdfPage > totalPdfPages) { 
                     countText = `Showing Back Cover`;
                 } else if (rightPdfPage > totalPdfPages) {
-                    countText = `PDF Page ${leftPdfPage} (End)`; // Odd number of pages, right side is blank
+                    countText = `PDF Page ${leftPdfPage} (End)`;
                 } else {
                     countText = `PDF Pages ${leftPdfPage} & ${rightPdfPage}`;
                 }
@@ -578,21 +608,18 @@
         // --- Touch Swipe Handlers ---
         function handleTouchStart(event) {
             touchStartX = event.changedTouches[0].screenX;
-            // Prevent scrolling behavior if a swipe is starting, but allow vertical scrolling
             bookWrapper.style.touchAction = 'none'; 
         }
 
         function handleTouchMove(event) {
-            // This is primarily to prevent default scroll-to-refresh on some browsers
-            // and ensure the swipe gesture is captured.
             event.preventDefault(); 
         }
 
         function handleTouchEnd(event) {
             touchEndX = event.changedTouches[0].screenX;
-            bookWrapper.style.touchAction = 'pan-y'; // Re-enable vertical scrolling
+            bookWrapper.style.touchAction = 'pan-y';
 
-            if (isAnimating) return; // Don't allow new swipes during animation
+            if (isAnimating) return;
 
             const distance = touchEndX - touchStartX;
 
